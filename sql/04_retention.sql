@@ -1,0 +1,5 @@
+-- sql/04_retention.sql
+-- Retention curves: return-visit rates over time.
+-- Which first-purchase price band predicts a second purchase?
+-- See docs/guide.md — Days 11-12.
+-- See docs/concepts.md — Retention Curves.

@@ -1,0 +1,5 @@
+-- sql/05_segments.sql
+-- ARPU and AOV by price band and category.
+-- Revenue concentration: top quintile share of total revenue.
+-- See docs/guide.md — Days 11-12.
+-- See docs/concepts.md — ARPU / AOV, Revenue Concentration.

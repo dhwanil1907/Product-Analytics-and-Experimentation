@@ -1,0 +1,4 @@
+-- sql/02_funnel.sql
+-- Funnel analysis: view → cart → purchase conversion rates.
+-- See docs/guide.md — Days 6-8 for the query patterns to use.
+-- See docs/concepts.md — Funnel Analysis and CTEs + Conditional Aggregation.

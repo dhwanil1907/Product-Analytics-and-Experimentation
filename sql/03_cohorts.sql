@@ -1,0 +1,4 @@
+-- sql/03_cohorts.sql
+-- Weekly cohort analysis: repeat-purchase rate at D7, D30, D60.
+-- See docs/guide.md — Days 9-10 for the cohort table query.
+-- See docs/concepts.md — Cohort Analysis.

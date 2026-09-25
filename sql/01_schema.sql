@@ -1,0 +1,4 @@
+-- sql/01_schema.sql
+-- CREATE TABLE statements for all five tables.
+-- See docs/schema.md for full column definitions and types.
+-- Run this before etl/build_dims.py.
