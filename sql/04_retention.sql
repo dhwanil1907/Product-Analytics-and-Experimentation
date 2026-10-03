@@ -1,5 +1,31 @@
 -- sql/04_retention.sql
--- Retention curves: return-visit rates over time.
--- Which first-purchase price band predicts a second purchase?
--- See docs/guide.md — Days 11-12.
--- See docs/concepts.md — Retention Curves.
+--
+-- Goal: the one number you did not know on day one.
+-- Which first-purchase price band is most likely to be followed
+-- by a second purchase?
+--
+-- Query 1 — repeat rate by first-purchase price band.
+-- Start from dim_users who have a first_purchase.
+-- Their band is the price_band of the product on that first purchase
+-- event, not the band of whatever they bought later.
+-- Hint: match the purchase whose event_time equals first_purchase.
+-- A second purchase is any later purchase event for that user.
+-- Left-side users with no second purchase still belong in the denominator.
+-- Output: band, count of first-time buyers, count who came back,
+-- repeat rate. Order by the rate.
+-- Exclude non-positive prices from the purchase you treat as the
+-- first purchase.
+--
+-- The README sentence is the comparison: band X returns at A percent,
+-- band Y at B percent. Do not average the bands together.
+--
+-- Query 2 — a simple return curve, separate from repeat purchase.
+-- For users who purchased at least once, what share show up again
+-- (any event, or a purchase — pick one and label it) by D7, D30, and D60
+-- after first_purchase.
+-- This curve should fall fast. Low retention in electronics is the
+-- finding that motivates a re-engagement recommendation. It is not
+-- evidence the query is wrong.
+--
+-- If a band has very few first-time buyers, do not let it be the insight.
+-- Hint: show the buyer count beside the rate.

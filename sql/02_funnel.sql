@@ -1,4 +1,35 @@
 -- sql/02_funnel.sql
--- Funnel analysis: view → cart → purchase conversion rates.
--- See docs/guide.md — Days 6-8 for the query patterns to use.
--- See docs/concepts.md — Funnel Analysis and CTEs + Conditional Aggregation.
+--
+-- Goal: where users drop off between view, cart, and purchase,
+-- and which slice drops off worst.
+-- Read fct_events joined to dim_products. Not raw_events.
+--
+-- Query 1 — overall funnel.
+-- Count distinct users who reached each stage, not event rows.
+-- A user who viewed ten products is one viewer.
+-- Stages: view, cart, purchase.
+-- Three rates: view to cart, cart to purchase, and purchase over view.
+-- Hint: a CTE that conditionally counts users per stage, then the rates
+-- in the outer query. Guard the divisions; a stage can be zero.
+--
+-- Query 2 — same funnel by price_band.
+-- Join dim_products. One row per band. Same three counts and the two
+-- step rates. Order by viewers so small bands do not look like winners.
+--
+-- Query 3 — same funnel by brand.
+-- Brands with tiny traffic will swing wildly. Hint: keep a minimum
+-- viewer count before you treat a brand as the worst segment.
+--
+-- Query 4 — same funnel by day of week.
+-- Hint: extract the day of week from event_time. Note which number
+-- is Sunday in Postgres before you write the sentence about weekends.
+--
+-- What you are looking for, in this order:
+-- - Is the bigger leak view to cart, or cart to purchase?
+-- - Which price band or brand has the worst cart-to-purchase rate
+--   among segments with enough users?
+-- - Do weekends convert differently from weekdays? One sentence is enough.
+--
+-- The biggest leak is the funnel finding for the README.
+-- The worst segment is a hypothesis for the retention queries, not a
+-- conclusion by itself.

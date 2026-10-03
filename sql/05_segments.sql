@@ -1,5 +1,34 @@
 -- sql/05_segments.sql
--- ARPU and AOV by price band and category.
--- Revenue concentration: top quintile share of total revenue.
--- See docs/guide.md — Days 11-12.
--- See docs/concepts.md — ARPU / AOV, Revenue Concentration.
+--
+-- Goal: who the revenue actually comes from, so the retention
+-- recommendation is aimed at a segment that matters.
+-- Purchases only. Leave out price less than or equal to zero.
+-- Read fct_events joined to dim_products.
+--
+-- Query 1 — ARPU by price_band.
+-- ARPU is total purchase revenue divided by distinct buyers.
+-- Also show buyer count and total revenue, or a high ARPU on
+-- three buyers will look like a strategy.
+-- Order by ARPU.
+--
+-- Query 2 — the same shape by category (the first segment of
+-- category_code, already on dim_products).
+--
+-- Query 3 — AOV, so you do not confuse it with ARPU.
+-- AOV is revenue per purchase event, not per user.
+-- One user with five orders changes ARPU and AOV differently.
+-- Compute AOV by price_band. Label the two metrics in the output
+-- so the README cannot swap them.
+--
+-- Query 4 — revenue concentration.
+-- One row per user: their total spend.
+-- Split users into five spend groups, richest first.
+-- Hint: a five-tile ranking, not a hand-built percentile.
+-- For each group: user count, revenue, and that revenue as a percent
+-- of all revenue.
+-- The finding is what share of revenue the top fifth of buyers
+-- account for. A steep share means retention effort on that group
+-- moves more money than lifting the repeat rate of everyone.
+--
+-- These queries support the recommendation. They are not a second
+-- North Star. The North Star stays the 90-day repeat-purchase rate.

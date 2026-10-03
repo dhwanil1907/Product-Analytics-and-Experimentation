@@ -1,4 +1,31 @@
 -- sql/03_cohorts.sql
--- Weekly cohort analysis: repeat-purchase rate at D7, D30, D60.
--- See docs/guide.md — Days 9-10 for the cohort table query.
--- See docs/concepts.md — Cohort Analysis.
+--
+-- Goal: one row per weekly signup cohort, with repeat-purchase rates
+-- at 7, 30, and 60 days.
+--
+-- Cohort membership comes from dim_users.cohort_week.
+-- Cohort size is every user first seen that week, including people
+-- who never purchased. Using only buyers will inflate the rates.
+--
+-- A repeat purchase is a purchase event strictly after the user's
+-- first event, not the purchase that happened on day zero.
+-- Days since first event: purchase date minus first_seen date.
+-- D7 is days 1 through 7. D30 is 1 through 30. D60 is 1 through 60.
+-- Those windows overlap. D30 includes anyone already counted in D7.
+--
+-- Rate: distinct users who had such a purchase, divided by cohort size.
+-- Hint: count users, not purchase rows. Two purchases inside the window
+-- are still one retained user. Summing purchase flags will double-count.
+--
+-- Output columns worth having: cohort week, cohort size, user counts
+-- at D7, D30, and D60, and the three rates. Order by cohort week.
+--
+-- How to read it:
+-- - Electronics repeat rates will be low. That is a result, not a bug.
+-- - Later cohorts cannot finish a 60-day window if the dataset ends
+--   first. Mark those rates as incomplete or leave them out.
+--   Hint: compare cohort week plus 60 days to the max event date.
+-- - Look for one cohort that retains clearly better or worse, and for
+--   whether later cohorts trend up or down. That sentence is the
+--   cohort finding. The reason comes from the next files, not from
+--   the rate alone.

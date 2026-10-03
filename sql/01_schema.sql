@@ -1,4 +1,36 @@
 -- sql/01_schema.sql
--- CREATE TABLE statements for all five tables.
--- See docs/schema.md for full column definitions and types.
--- Run this before etl/build_dims.py.
+--
+-- Goal: create the five empty tables. No inserts in this file.
+-- Run it after the database exists and before etl/build_dims.py.
+-- Column lists, types, and nullability are in docs/schema.md.
+--
+-- raw_events
+-- The CSV, stored. No primary key and no foreign keys on purpose.
+-- event_time is a timestamp with time zone. price is numeric, not float.
+-- user_session is a uuid. category_code and brand are the only nullable
+-- columns. event_type, product_id, category_id, price, user_id are required.
+--
+-- dim_products
+-- One row per product_id. product_id is the primary key.
+-- brand and category nullable. price_band required.
+--
+-- dim_users
+-- One row per user_id. user_id is the primary key.
+-- first_seen and cohort_week required. first_purchase nullable.
+--
+-- fct_sessions
+-- One row per session. session_id is the primary key.
+-- user_id references dim_users. session_start, session_duration,
+-- event_count, and converted are all required.
+-- session_duration is an interval.
+--
+-- fct_events
+-- Cleaned events. Foreign keys only live on this table:
+-- product_id to dim_products, user_id to dim_users,
+-- user_session to fct_sessions.session_id.
+-- Same nullability as raw_events.
+--
+-- Hint: create the two dimensions and fct_sessions before fct_events,
+-- or the foreign keys have nothing to point at.
+-- Hint: make the script rerunnable by dropping or replacing existing
+-- tables first, in an order that does not break those foreign keys.
