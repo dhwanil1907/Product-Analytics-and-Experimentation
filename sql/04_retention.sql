@@ -1,31 +1,81 @@
 -- sql/04_retention.sql
---
--- Goal: the one number you did not know on day one.
--- Which first-purchase price band is most likely to be followed
--- by a second purchase?
---
--- Query 1 — repeat rate by first-purchase price band.
--- Start from dim_users who have a first_purchase.
--- Their band is the price_band of the product on that first purchase
--- event, not the band of whatever they bought later.
--- Hint: match the purchase whose event_time equals first_purchase.
--- A second purchase is any later purchase event for that user.
--- Left-side users with no second purchase still belong in the denominator.
--- Output: band, count of first-time buyers, count who came back,
--- repeat rate. Order by the rate.
--- Exclude non-positive prices from the purchase you treat as the
--- first purchase.
---
--- The README sentence is the comparison: band X returns at A percent,
--- band Y at B percent. Do not average the bands together.
---
--- Query 2 — a simple return curve, separate from repeat purchase.
--- For users who purchased at least once, what share show up again
--- (any event, or a purchase — pick one and label it) by D7, D30, and D60
--- after first_purchase.
--- This curve should fall fast. Low retention in electronics is the
--- finding that motivates a re-engagement recommendation. It is not
--- evidence the query is wrong.
---
--- If a band has very few first-time buyers, do not let it be the insight.
--- Hint: show the buyer count beside the rate.
+-- Key insight query: repeat purchase rate by first-purchase price band.
+-- Also: return curve after first purchase (any event).
+
+-- ---------------------------------------------------------------------------
+-- Query 1: Second purchase rate by first-purchase price band
+-- Band comes from the product on the user's first_purchase timestamp.
+-- ---------------------------------------------------------------------------
+WITH first_purchase_events AS (
+    SELECT
+        u.user_id,
+        u.first_purchase,
+        p.price_band AS first_purchase_band
+    FROM dim_users u
+    INNER JOIN fct_events e
+        ON e.user_id = u.user_id
+        AND e.event_type = 'purchase'
+        AND e.event_time = u.first_purchase
+        AND e.price > 0
+    INNER JOIN dim_products p ON p.product_id = e.product_id
+    WHERE u.first_purchase IS NOT NULL
+),
+second_purchase AS (
+    SELECT DISTINCT fp.user_id
+    FROM first_purchase_events fp
+    INNER JOIN fct_events e
+        ON e.user_id = fp.user_id
+        AND e.event_type = 'purchase'
+        AND e.event_time > fp.first_purchase
+)
+SELECT
+    fp.first_purchase_band,
+    COUNT(DISTINCT fp.user_id) AS first_time_buyers,
+    COUNT(DISTINCT sp.user_id) AS returned_buyers,
+    ROUND(
+        100.0 * COUNT(DISTINCT sp.user_id) / NULLIF(COUNT(DISTINCT fp.user_id), 0),
+        2
+    ) AS repeat_rate_pct
+FROM first_purchase_events fp
+LEFT JOIN second_purchase sp ON sp.user_id = fp.user_id
+GROUP BY fp.first_purchase_band
+ORDER BY repeat_rate_pct DESC;
+
+-- ---------------------------------------------------------------------------
+-- Query 2: Activity after first purchase (any event type)
+-- Share of buyers who show any activity within 7 / 30 / 60 days.
+-- ---------------------------------------------------------------------------
+WITH buyers AS (
+    SELECT user_id, first_purchase
+    FROM dim_users
+    WHERE first_purchase IS NOT NULL
+),
+activity AS (
+    SELECT
+        b.user_id,
+        MIN((e.event_time::date - b.first_purchase::date)) AS days_to_return
+    FROM buyers b
+    INNER JOIN fct_events e
+        ON e.user_id = b.user_id
+        AND e.event_time > b.first_purchase
+    GROUP BY b.user_id
+)
+SELECT
+    COUNT(*) AS first_time_buyers,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE days_to_return BETWEEN 1 AND 7)
+        / NULLIF(COUNT(*), 0),
+        2
+    ) AS active_d7_pct,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE days_to_return BETWEEN 1 AND 30)
+        / NULLIF(COUNT(*), 0),
+        2
+    ) AS active_d30_pct,
+    ROUND(
+        100.0 * COUNT(*) FILTER (WHERE days_to_return BETWEEN 1 AND 60)
+        / NULLIF(COUNT(*), 0),
+        2
+    ) AS active_d60_pct
+FROM buyers b
+LEFT JOIN activity a ON a.user_id = b.user_id;

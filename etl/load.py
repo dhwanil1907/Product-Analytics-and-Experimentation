@@ -10,9 +10,11 @@ import pandas as pd
 import psycopg2
 from dotenv import load_dotenv
 
+# Paths are relative to the repo root, not the etl/ folder.
 ROOT = Path(__file__).resolve().parents[1]
 CSV_PATH = ROOT / "data" / "events.csv"
 
+# Column order must match the CSV and the COPY statement below.
 COLUMNS = [
     "event_time",
     "event_type",
@@ -25,9 +27,10 @@ COLUMNS = [
     "user_session",
 ]
 
-# Session ids in this file are 10-character strings, not UUIDs.
+# Session ids in this Kaggle file are short strings, not UUIDs.
 CREATE_RAW_EVENTS = """
-CREATE TABLE IF NOT EXISTS raw_events (
+DROP TABLE IF EXISTS raw_events;
+CREATE TABLE raw_events (
     event_time timestamptz NOT NULL,
     event_type text NOT NULL,
     product_id bigint NOT NULL,
@@ -36,31 +39,35 @@ CREATE TABLE IF NOT EXISTS raw_events (
     brand text,
     price numeric NOT NULL,
     user_id bigint NOT NULL,
-    user_session text NOT NULL
+    user_session text
 )
 """
 
 
 def load_events(db_url: str, csv_path: Path) -> int:
     """Replace raw_events with the CSV and return the inserted row count."""
+    # Read the full file into memory once; ~900k rows is fine on a laptop.
     frame = pd.read_csv(csv_path)
     missing = [name for name in COLUMNS if name not in frame.columns]
     if missing:
         raise ValueError(f"CSV is missing columns: {', '.join(missing)}")
 
+    # COPY expects CSV bytes on stdin; we write only the columns we need, no header row.
     buffer = io.StringIO()
     frame.loc[:, COLUMNS].to_csv(buffer, index=False, header=False)
     buffer.seek(0)
 
     with psycopg2.connect(db_url) as conn:
         with conn.cursor() as cur:
+            # Ensure the table exists, then wipe it so reruns do not duplicate rows.
             cur.execute(CREATE_RAW_EVENTS)
-            cur.execute("TRUNCATE raw_events")
             cur.copy_expert(
                 "COPY raw_events FROM STDIN WITH (FORMAT csv)",
                 buffer,
             )
         conn.commit()
+
+        # Confirm how many rows landed.
         with conn.cursor() as cur:
             cur.execute("SELECT COUNT(*) FROM raw_events")
             row = cur.fetchone()
@@ -70,6 +77,7 @@ def load_events(db_url: str, csv_path: Path) -> int:
 
 
 def main() -> None:
+    # DB_URL example: postgresql://localhost:5432/ecommerce
     load_dotenv(ROOT / ".env")
     db_url = os.getenv("DB_URL")
     if not db_url:

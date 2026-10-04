@@ -1,36 +1,54 @@
 -- sql/01_schema.sql
---
--- Goal: create the five empty tables. No inserts in this file.
--- Run it after the database exists and before etl/build_dims.py.
--- Column lists, types, and nullability are in docs/schema.md.
---
--- raw_events
--- The CSV, stored. No primary key and no foreign keys on purpose.
--- event_time is a timestamp with time zone. price is numeric, not float.
--- user_session is a uuid. category_code and brand are the only nullable
--- columns. event_type, product_id, category_id, price, user_id are required.
---
--- dim_products
--- One row per product_id. product_id is the primary key.
--- brand and category nullable. price_band required.
---
--- dim_users
--- One row per user_id. user_id is the primary key.
--- first_seen and cohort_week required. first_purchase nullable.
---
--- fct_sessions
--- One row per session. session_id is the primary key.
--- user_id references dim_users. session_start, session_duration,
--- event_count, and converted are all required.
--- session_duration is an interval.
---
--- fct_events
--- Cleaned events. Foreign keys only live on this table:
--- product_id to dim_products, user_id to dim_users,
--- user_session to fct_sessions.session_id.
--- Same nullability as raw_events.
---
--- Hint: create the two dimensions and fct_sessions before fct_events,
--- or the foreign keys have nothing to point at.
--- Hint: make the script rerunnable by dropping or replacing existing
--- tables first, in an order that does not break those foreign keys.
+-- Creates dimension and fact tables used for analysis.
+-- raw_events is created by etl/load.py when you load the CSV.
+-- Run this after load.py, before etl/build_dims.py.
+
+-- Drop child tables first so foreign keys do not block the drop.
+DROP TABLE IF EXISTS fct_events;
+DROP TABLE IF EXISTS fct_sessions;
+DROP TABLE IF EXISTS dim_products;
+DROP TABLE IF EXISTS dim_users;
+
+-- One row per product. price_band comes from the latest non-zero price in build_dims.
+CREATE TABLE dim_products (
+    product_id bigint PRIMARY KEY,
+    brand text,
+    category text,
+    price_band text NOT NULL
+);
+
+-- One row per user. first_seen and cohort_week are derived from event history.
+CREATE TABLE dim_users (
+    user_id bigint PRIMARY KEY,
+    first_seen timestamptz NOT NULL,
+    first_purchase timestamptz,
+    cohort_week date NOT NULL
+);
+
+-- One row per session (user_session in the CSV). session_id is text, not a UUID.
+CREATE TABLE fct_sessions (
+    session_id text PRIMARY KEY,
+    user_id bigint NOT NULL REFERENCES dim_users (user_id),
+    session_start timestamptz NOT NULL,
+    session_duration interval NOT NULL,
+    event_count integer NOT NULL,
+    converted boolean NOT NULL
+);
+
+-- Cleaned events with foreign keys. Analysis queries should read this table.
+CREATE TABLE fct_events (
+    event_time timestamptz NOT NULL,
+    event_type text NOT NULL,
+    product_id bigint NOT NULL REFERENCES dim_products (product_id),
+    category_id bigint NOT NULL,
+    category_code text,
+    brand text,
+    price numeric NOT NULL,
+    user_id bigint NOT NULL REFERENCES dim_users (user_id),
+    user_session text NOT NULL REFERENCES fct_sessions (session_id)
+);
+
+CREATE INDEX idx_fct_events_user ON fct_events (user_id);
+CREATE INDEX idx_fct_events_product ON fct_events (product_id);
+CREATE INDEX idx_fct_events_type ON fct_events (event_type);
+CREATE INDEX idx_fct_events_time ON fct_events (event_time);

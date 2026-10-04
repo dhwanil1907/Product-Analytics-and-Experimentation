@@ -1,0 +1,5 @@
+price_band,viewers,cart_adders,purchasers,view_to_cart_pct,cart_to_purchase_pct
+under_50,202769,15474,9715,7.63,62.78
+50_to_200,146132,11754,6624,8.04,56.36
+200_to_500,68055,9710,4823,14.27,49.67
+over_500,19378,1870,950,9.65,50.8

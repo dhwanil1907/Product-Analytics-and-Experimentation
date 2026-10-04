@@ -1,34 +1,79 @@
 -- sql/05_segments.sql
---
--- Goal: who the revenue actually comes from, so the retention
--- recommendation is aimed at a segment that matters.
--- Purchases only. Leave out price less than or equal to zero.
--- Read fct_events joined to dim_products.
---
--- Query 1 — ARPU by price_band.
--- ARPU is total purchase revenue divided by distinct buyers.
--- Also show buyer count and total revenue, or a high ARPU on
--- three buyers will look like a strategy.
--- Order by ARPU.
---
--- Query 2 — the same shape by category (the first segment of
--- category_code, already on dim_products).
---
--- Query 3 — AOV, so you do not confuse it with ARPU.
--- AOV is revenue per purchase event, not per user.
--- One user with five orders changes ARPU and AOV differently.
--- Compute AOV by price_band. Label the two metrics in the output
--- so the README cannot swap them.
---
--- Query 4 — revenue concentration.
--- One row per user: their total spend.
--- Split users into five spend groups, richest first.
--- Hint: a five-tile ranking, not a hand-built percentile.
--- For each group: user count, revenue, and that revenue as a percent
--- of all revenue.
--- The finding is what share of revenue the top fifth of buyers
--- account for. A steep share means retention effort on that group
--- moves more money than lifting the repeat rate of everyone.
---
--- These queries support the recommendation. They are not a second
--- North Star. The North Star stays the 90-day repeat-purchase rate.
+-- Revenue segments: ARPU, AOV, and concentration (Pareto-style quintiles).
+-- Revenue uses purchase events with price > 0 only.
+
+-- ---------------------------------------------------------------------------
+-- Query 1: ARPU by price_band
+-- ARPU = total revenue / distinct buyers in that band.
+-- ---------------------------------------------------------------------------
+SELECT
+    p.price_band,
+    COUNT(DISTINCT e.user_id) AS buyers,
+    ROUND(SUM(e.price), 2) AS total_revenue,
+    ROUND(SUM(e.price) / NULLIF(COUNT(DISTINCT e.user_id), 0), 2) AS arpu
+FROM fct_events e
+INNER JOIN dim_products p ON p.product_id = e.product_id
+WHERE e.event_type = 'purchase'
+  AND e.price > 0
+GROUP BY p.price_band
+ORDER BY arpu DESC;
+
+-- ---------------------------------------------------------------------------
+-- Query 2: ARPU by category (top-level category on dim_products)
+-- ---------------------------------------------------------------------------
+SELECT
+    COALESCE(p.category, '(no category)') AS category,
+    COUNT(DISTINCT e.user_id) AS buyers,
+    ROUND(SUM(e.price), 2) AS total_revenue,
+    ROUND(SUM(e.price) / NULLIF(COUNT(DISTINCT e.user_id), 0), 2) AS arpu
+FROM fct_events e
+INNER JOIN dim_products p ON p.product_id = e.product_id
+WHERE e.event_type = 'purchase'
+  AND e.price > 0
+GROUP BY COALESCE(p.category, '(no category)')
+ORDER BY total_revenue DESC;
+
+-- ---------------------------------------------------------------------------
+-- Query 3: AOV by price_band (revenue per order, not per user)
+-- ---------------------------------------------------------------------------
+SELECT
+    p.price_band,
+    COUNT(*) AS purchase_events,
+    ROUND(SUM(e.price), 2) AS total_revenue,
+    ROUND(SUM(e.price) / NULLIF(COUNT(*), 0), 2) AS aov
+FROM fct_events e
+INNER JOIN dim_products p ON p.product_id = e.product_id
+WHERE e.event_type = 'purchase'
+  AND e.price > 0
+GROUP BY p.price_band
+ORDER BY aov DESC;
+
+-- ---------------------------------------------------------------------------
+-- Query 4: Revenue concentration by spend quintile
+-- Quintile 1 = highest spenders. Shows share of revenue in each fifth.
+-- ---------------------------------------------------------------------------
+WITH user_revenue AS (
+    SELECT user_id, SUM(price) AS total_spend
+    FROM fct_events
+    WHERE event_type = 'purchase'
+      AND price > 0
+    GROUP BY user_id
+),
+ranked AS (
+    SELECT
+        user_id,
+        total_spend,
+        NTILE(5) OVER (ORDER BY total_spend DESC) AS quintile
+    FROM user_revenue
+)
+SELECT
+    quintile,
+    COUNT(*) AS users,
+    ROUND(SUM(total_spend), 2) AS revenue,
+    ROUND(
+        100.0 * SUM(total_spend) / SUM(SUM(total_spend)) OVER (),
+        2
+    ) AS revenue_pct
+FROM ranked
+GROUP BY quintile
+ORDER BY quintile;
